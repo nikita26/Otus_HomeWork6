@@ -7,30 +7,36 @@
             #region №1 передача делегата в виде параметра
 
             var users = new List<User>() { 
-                new User(){Id= 1,Name="Nikita",Score=43.4f},
-                new User(){Id= 2,Name="Vasiliy",Score=23},
-                new User(){Id= 3,Name="Klim",Score=53.65f},
-                new User(){Id= 4,Name="Vladimir",Score=24.53f},
-                new User(){Id= 5,Name="Ivan",Score=12.4f},
+                new User(){Id = 1, Name ="Nikita", Score = 43.4f},
+                new User(){Id = 2, Name ="Vasiliy", Score = 23},
+                new User(){Id = 3, Name ="Klim", Score = 53.65f},
+                new User(){Id = 4, Name ="Vladimir", Score = 24.53f},
+                new User(){Id = 5, Name ="Ivan", Score = 12.4f},
             };
 
             var max = users.GetMax(GetScore);
             var name = typeof(User);
+            Console.ForegroundColor= ConsoleColor.Yellow;
+            Console.WriteLine($"Максимальный результат у {max.Name} (Id {max.Id})\n");
+            Console.ForegroundColor = ConsoleColor.White;
+
             #endregion
 
 
 
             #region №2 Сканер файлов
-            var scanner = new FileSystemScanner(@"C:\work\OtusHomeWork\Otus_HomeWork6");
+            var fileCount = 0;
+            var scanner = new FileSystemScanner(@"C:\");
             scanner.FileFound += (s, e) => {
                 var args = (FileArgs)e;
                 Console.WriteLine(args.Name);
-
-                //Принудительная остановка при выполнения условия
-                if(args.Name.Contains(".txt"))
-                    scanner.Stop();
+                fileCount++;
             };
             scanner.Start();
+            
+            Thread.Sleep(1500); //дать сканеру поработать перед остановкой
+            
+            scanner.Stop();
             #endregion
 
 
@@ -39,11 +45,16 @@
         #region №1 передача делегата в виде параметра
 
         /// <summary>
-        /// Получение числового поля для сравнения из объекта
+        /// Получение числового поля для сравнения из объекта класса User
         /// </summary>
-        /// <param name="u"></param>
-        /// <returns></returns>
         public static float GetScore(User u) => u.Score;
+
+        /// <summary>
+        /// Поиск максимума
+        /// </summary>
+        /// <typeparam name="T">Тип с которым бдует работать метод</typeparam>
+        /// <param name="e">Коллекция для поиска</param>
+        /// <param name="getParam">Делегат для получения числового значения для сравения из класса</param>
         public static T GetMax<T>(this IEnumerable<T> e, Func<T, float> getParam) where T : class
         {
             var max = e.FirstOrDefault();
@@ -77,40 +88,55 @@
     /// </summary>
     public class FileSystemScanner
     {
+        /// <summary>
+        /// Событие нахождения нового файла
+        /// </summary>
         public event EventHandler FileFound;
 
         private string startDirectory;
-        private bool work;
+        private CancellationTokenSource source;
+        private Task worker;
 
         public FileSystemScanner(string startDirectory)
         {
-            work = true;
             this.startDirectory = startDirectory;
         }
 
         /// <summary>
         /// Запуск сканера
         /// </summary>
-        public void Start()
+        public Task Start()
         {
-            Scann(startDirectory);
+            if(worker == null || worker?.Status != TaskStatus.Running)
+            {
+                source = new CancellationTokenSource();
+                var token = source.Token;
+                worker = Task.Run(() => { Scann(startDirectory); }, token);
+            }
+            return worker;
         }
+        /// <summary>
+        /// Остановка сканера
+        /// </summary>
         public void Stop()
         {
-            work = false;
+            source?.Cancel();
         }
 
+        /// <summary>
+        /// Рекурсивный метод сканирование папки
+        /// </summary>
+        /// <param name="path">путь к текущей папке с которой идет работа</param>
         private void Scann(string path)
         {
-            if (Directory.Exists(path) && work)
+            Thread.Sleep(200);  //искуственное торможение сканера, чтобы не успел найти все файлы до принудительной остановки
+            if (Directory.Exists(path))
             {
                 try
                 {
                     var file = Directory.GetFiles(path);
                     foreach (var f in file)
                     {
-                        if (!work) break;
-
                         var newFile = new FileArgs()
                         {
                             Name = Path.GetFileName(f),
@@ -141,5 +167,4 @@
         public string Path { get; set; }
     }
     #endregion
-
 }
